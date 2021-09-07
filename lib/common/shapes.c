@@ -21,7 +21,7 @@ typedef struct {
     void (*vertex_gen) (pointf*, pointf*);
 } poly_desc_t;
  
-static port Center = {.theta = -1, .clip = 1};
+static port Center = { {0, 0}, -1, 0, 0, 0, 1, 0, 0, 0 };
 
 #define ATTR_SET(a,n) ((a) && (*(agxget(n,a->index)) != '\0'))
   /* Default point size = 0.05 inches or 3.6 points */
@@ -77,20 +77,30 @@ static poly_desc_t cylinder_gen = {
     cylinder_vertices,
 };
 
+/*jrd*/
+static pointf queue_size (pointf);
+static void queue_vertices (pointf*, pointf*);
+static void queue_draw(GVJ_t * job, pointf * AF, int sides, int style, int filled);
+/* static boolean queue_inside(inside_t * inside_context, pointf p); */
+static poly_desc_t queue_gen = {
+    queue_size,
+    queue_vertices,
+};
+
 /* polygon descriptions.  "polygon" with 0 sides takes all user control */
 
 /*			       regul perip sides orien disto skew */
-static polygon_t p_polygon = {.peripheries = 1};
+static polygon_t p_polygon = { FALSE, 1, 0, 0., 0., 0. };
 
 /* builtin polygon descriptions */
-static polygon_t p_ellipse = {.peripheries = 1, .sides = 1};
-static polygon_t p_circle = {.regular = TRUE, .peripheries = 1, .sides = 1};
-static polygon_t p_egg = {.peripheries = 1, .sides = 1, .distortion = -0.3};
-static polygon_t p_triangle = {.peripheries = 1, .sides = 3};
-static polygon_t p_box = {.peripheries = 1, .sides = 4};
-static polygon_t p_square = {.regular = TRUE, .peripheries = 1, .sides = 4};
-static polygon_t p_plaintext = {.sides = 4};
-static polygon_t p_plain = {.sides = 4};
+static polygon_t p_ellipse = { FALSE, 1, 1, 0., 0., 0. };
+static polygon_t p_circle = { TRUE, 1, 1, 0., 0., 0. };
+static polygon_t p_egg = { FALSE, 1, 1, 0., -.3, 0. };
+static polygon_t p_triangle = { FALSE, 1, 3, 0., 0., 0. };
+static polygon_t p_box = { FALSE, 1, 4, 0., 0., 0. };
+static polygon_t p_square = { TRUE, 1, 4, 0., 0., 0. };
+static polygon_t p_plaintext = { FALSE, 0, 4, 0., 0., 0. };
+static polygon_t p_plain = { FALSE, 0, 4, 0., 0., 0. };
 static polygon_t p_diamond = { FALSE, 1, 4, 45., 0., 0. };
 static polygon_t p_trapezium = { FALSE, 1, 4, 0., -.4, 0. };
 static polygon_t p_parallelogram = { FALSE, 1, 4, 0., 0., .6 };
@@ -106,6 +116,8 @@ static polygon_t p_box3d = { FALSE, 1, 4, 0., 0., 0., BOX3D };
 static polygon_t p_component = { FALSE, 1, 4, 0., 0., 0., COMPONENT };
 static polygon_t p_underline = { FALSE, 1, 4, 0., 0., 0., UNDERLINE };
 static polygon_t p_cylinder = { FALSE, 1, 19, 0., 0., 0., CYLINDER, (pointf*)&cylinder_gen };
+/* jrd */
+static polygon_t p_queue = { FALSE, 1, 19, 0., 0., 0., QUEUE, (pointf*)&queue_gen };
 
 /* redundant and undocumented builtin polygons */
 static polygon_t p_doublecircle = { TRUE, 2, 1, 0., 0., 0. };
@@ -227,6 +239,14 @@ static shape_functions cylinder_fns = {
     poly_path,
     poly_gencode
 };
+static shape_functions queue_fns = {
+    poly_init,
+    poly_free,
+    poly_port,
+    poly_inside,
+    poly_path,
+    poly_gencode
+};
 
 static shape_desc Shapes[] = {	/* first entry is default for no such shape */
     {"box", &poly_fns, &p_box},
@@ -295,6 +315,12 @@ static shape_desc Shapes[] = {	/* first entry is default for no such shape */
     {"Mrecord", &record_fns, NULL},
     {"epsf", &epsf_fns, NULL},
     {"star", &star_fns, &p_star},
+    /* *** additional shapes for UML-like *** */
+
+    {"database", &cylinder_fns, &p_cylinder},
+    {"queue", &queue_fns, &p_queue},
+
+    /* *** remaining *** */
     {NULL, NULL, NULL}
 };
 
@@ -514,6 +540,10 @@ void round_corners(GVJ_t * job, pointf * AF, int sides, int style, int filled)
 	mode = ROUNDED;
     if (mode == CYLINDER) {
 	cylinder_draw (job, AF, sides, style, filled);
+	return;
+    } 
+    if (mode == QUEUE) {
+	queue_draw (job, AF, sides, style, filled);
 	return;
     } 
     B = N_NEW(4 * sides + 4, pointf);
@@ -4033,6 +4063,81 @@ static void cylinder_draw(GVJ_t * job, pointf * AF, int sides, int style, int fi
     gvrender_beziercurve(job, AF, sides, FALSE, FALSE, filled);
     gvrender_beziercurve(job, vertices, 7, FALSE, FALSE, FALSE);
 }
+
+/*jrd*/
+/* queue
+ */
+static pointf queue_size (pointf sz)
+{
+    sz.y *= 1.375;
+    return sz;
+}
+
+static void queue_vertices (pointf* vertices, pointf* bb)
+{
+    double x = bb->x/2;
+    double xr = bb->x/11;
+    double y = bb->y/2;
+
+    vertices[0].x = x-xr;
+    vertices[0].y = y;
+    vertices[1].x = x-(1-0.551784)*xr;
+    vertices[1].y = y;
+    vertices[2].x = x;
+    vertices[2].y = 0.551784*y;
+    vertices[3].x = x;
+    vertices[3].y = 0;
+    vertices[4].x = x;
+    vertices[4].y = -0.551784*y;
+    vertices[5].x = vertices[1].x;
+    vertices[5].y = -y;
+    vertices[6].x = x-xr;
+    vertices[6].y = -y;
+    vertices[7] = vertices[6];
+    vertices[8].x = xr-x;
+    vertices[8].y = -y;
+    vertices[9] = vertices[8];
+    vertices[10].x = -vertices[1].x;
+    vertices[10].y = -y;
+    vertices[11].x = -vertices[4].x;
+    vertices[11].y = vertices[4].y;
+    vertices[12].x = -vertices[3].x;
+    vertices[12].y = vertices[3].y;
+    vertices[13].x = -vertices[2].x;
+    vertices[13].y = vertices[2].y;
+    vertices[14].x = -vertices[1].x;
+    vertices[14].y = vertices[1].y;
+    vertices[15].x = -vertices[0].x;
+    vertices[15].y = vertices[0].y;
+    vertices[16] = vertices[15];
+    vertices[18] = vertices[17] = vertices[0];
+}
+
+static void queue_draw(GVJ_t * job, pointf * AF, int sides, int style, int filled)
+{
+    gvrender_beziercurve(job, AF, sides, FALSE, FALSE, filled);
+
+    pointf vertices[0];
+    double x0 = AF[9].x;
+    double x02 = x0+x0;
+
+    vertices[0] = AF[9];
+    vertices[1].x = x02 - AF[10].x;
+    vertices[1].y = AF[10].y;
+    vertices[2].x = x02 - AF[11].x;
+    vertices[2].y = AF[11].y;
+    vertices[3].x = x02 - AF[12].x;
+    vertices[3].y = AF[12].y;
+    vertices[4].x = x02 - AF[13].x;
+    vertices[4].y = AF[13].y;
+    vertices[5].x = x02 - AF[14].x;
+    vertices[5].y = AF[14].y;
+    vertices[6] = AF[15];
+
+    gvrender_beziercurve(job, vertices, 7, FALSE, FALSE, FALSE);
+}
+
+
 
 static char *side_port[] = { "s", "e", "n", "w" };
 

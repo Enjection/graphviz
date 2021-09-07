@@ -8,7 +8,8 @@
  * Contributors: Details at https://graphviz.org
  *************************************************************************/
 
-#pragma once
+#ifndef GV_CONST_H
+#define GV_CONST_H
 
 #define SMALLBUF	128
 #define LPAREN		'('
@@ -243,6 +244,8 @@
 #define LARROW		(24 << 24)
 #define LPROMOTER	(25 << 24)
 #define CYLINDER	(26 << 24)
+/*jrd*/
+#define QUEUE	(27 << 24)
 
 /* fill types */
 #define FILL      	1
@@ -285,3 +288,5 @@
 #define FONTSIZE_MUCH_TOO_SMALL 0.15
 /* fontsize at which text is rendered by a simple line */
 #define FONTSIZE_TOO_SMALL 1.5
+
+#endif
